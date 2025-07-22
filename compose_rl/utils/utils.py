@@ -1292,6 +1292,16 @@ def _get_params_to_summon_fsdp2(module: torch.nn.Module, recurse: bool = True):
     return dtensor_params
 
 
+def _get_dtensor_params(module: torch.nn.Module, recurse: bool = True):
+    """Gets the DTensors to materialize for an FSDP2 model based on recurse.
+    """
+    result = {}
+    for name, param in module.named_parameters(recurse=recurse):
+        if isinstance(param, DTensor):
+            result[name] = param
+    return result
+
+
 @contextmanager
 def _summon_full_params_fsdp2(
     model: torch.nn.Module,

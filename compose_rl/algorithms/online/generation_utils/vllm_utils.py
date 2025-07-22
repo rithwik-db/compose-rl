@@ -304,24 +304,9 @@ def simplify_param_path(path: str) -> str:
     return '.'.join(clean_parts)
 
 
-def is_fsdp_leaf(module: nn.Module) -> bool:
-    """Check if the module is a leaf in the FSDP(1/2) hierarchy.
-
-    Args:
-        module (nn.Module): The torch module to check
-    """
-    if not isinstance(module, (FSDP, FSDPModule)):
-        return False
-    for subm in module.modules():
-        if subm is not module and isinstance(subm, (FSDP, FSDPModule)):
-            return False
-    return True
-
-
-def should_update_torch_module(
+def should_update_params(
     parsed_module_name: str,
     full_param_name: str,
-    module: nn.Module,
     loss_type: OnPolicyEnum,
     valid_non_leaf_module_names: list[str],
 ):
@@ -334,9 +319,6 @@ def should_update_torch_module(
         loss_type (str): The loss type which decides whether to use critic-free or not. Defaults to "ppo".
         valid_non_leaf_module_names (list[str]): List of valid non-leaf module names
     """
-    if is_fsdp_leaf(module):
-        return True
-
     if parsed_module_name not in valid_non_leaf_module_names:
         return False
 
@@ -473,10 +455,9 @@ def broadcast_to_vllm(
                     log.info('Critic head found, skipping sending')
                     continue
 
-                update = should_update_torch_module(
+                update = should_update_params(
                     parsed_name,
                     full_name,
-                    module,
                     loss_type,
                     valid_non_leaf_module_names,
                 )
