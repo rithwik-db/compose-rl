@@ -415,7 +415,7 @@ def broadcast_to_vllm(
         'lm_head.weight',
         'model.norm.weight',
     ]
-    seen_fsdp_modules = set()
+    seen_modules = set()
     seen_updated_parsed_names = set()
 
     with torch.no_grad():
@@ -440,47 +440,30 @@ def broadcast_to_vllm(
     update_time = 0
 
     for module_name, module in model.named_modules():
-        # Skip non-FSDP modules
-        if not isinstance(module, (FSDP, FSDPModule)):
-            continue
-
         # This is needed otherwise FSDP will materialize parameters of size 0.
         # So just for the joint actor critic models we have to actually skip this module.
         if module_name == 'model' and loss_type == OnPolicyEnum.PPO:
             continue
 
         # Only update if we haven't updated this module before
-        if module in seen_fsdp_modules:
+        if module in seen_modules:
             continue
-        seen_fsdp_modules.add(module)
+        seen_modules.add(module)
 
-        # Materializes parameters for this specific FSDP module only BUT THIS
-        # INCLUDES any parameters from submodules that are not FSDP-wrapped themselves.
-        # We don't want to materialize the entire model to avoid potential OOM.
-        # View NestedFSDPModel in tests/common/models.py and the related test in
-        # test_utils.py for an example.
+        # Materializes parameters for this specific FSDP module only. This MAY
+        # include parameters from submodules that are not FSDP-wrapped themselves,
+        # but we don't care about those params, since later on, we have
+        # module.named_parameters(recurse=False). We don't want to materialize the
+        # entire model to avoid potential OOM.
         with summon_full_params(
             module,
             writeback=False,
             rank0_only=True,
             recurse=False,
         ):
-            # Note: For the following module.named_parameters(), we have to use recurse=True
-            # since the following case is possible:
-            # FSDP_Module
-            #   |- direct_param (found with recurse=False)
-            #   |- NonFSDP_Child
-            #   |   |- child_param (missed with recurse=False)
-            for _, param in module.named_parameters(recurse=True):
+            for _, param in module.named_parameters(recurse=False):
                 # Only distribute on rank 0
                 if not dist.get_global_rank() == 0:
-                    continue
-
-                # Skip DTensor params at this level since they were not summoned
-                # and we only want to broadcast the summoned parameters.
-                # Encountering this conditional implies that a FSDP-wrapped submodule
-                # exists and will later be summoned to materialize this parameter.
-                if isinstance(param, DTensor):
                     continue
 
                 full_name = get_path_to_param(model, param)
