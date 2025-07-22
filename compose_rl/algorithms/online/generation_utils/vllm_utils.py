@@ -415,7 +415,6 @@ def broadcast_to_vllm(
         'lm_head.weight',
         'model.norm.weight',
     ]
-    seen_modules = set()
     seen_updated_parsed_names = set()
 
     with torch.no_grad():
@@ -482,6 +481,7 @@ def broadcast_to_vllm(
                     valid_non_leaf_module_names,
                 )
                 print("Update: ", update)
+                print()
 
                 if not update:
                     continue
