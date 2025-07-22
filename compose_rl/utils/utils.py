@@ -1307,6 +1307,10 @@ def _summon_full_params_fsdp2(
     dtensor_params = {
         name: param for name, param in model.named_parameters(recurse=recurse) if isinstance(param, DTensor)
     }
+    print("Module name: ", model.__class__.__name__)
+    from pprint import pprint
+    print("Found DTensors: ")
+    pprint(dtensor_params)
 
     if not dtensor_params:
         yield

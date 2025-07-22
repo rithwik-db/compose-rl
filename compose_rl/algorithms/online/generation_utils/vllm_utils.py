@@ -445,11 +445,6 @@ def broadcast_to_vllm(
         if module_name == 'model' and loss_type == OnPolicyEnum.PPO:
             continue
 
-        # Only update if we haven't updated this module before
-        if module in seen_modules:
-            continue
-        seen_modules.add(module)
-
         # Materializes parameters for this specific FSDP module only. This MAY
         # include parameters from submodules that are not FSDP-wrapped themselves,
         # but we don't care about those params, since later on, we have
@@ -468,6 +463,9 @@ def broadcast_to_vllm(
 
                 full_name = get_path_to_param(model, param)
                 parsed_name = simplify_param_path(full_name)
+                print("Parsed name: ", parsed_name)
+                print("Param: ", param)
+                print("Param class: ", type(param))
 
                 if parsed_name in seen_updated_parsed_names:
                     continue
@@ -483,6 +481,7 @@ def broadcast_to_vllm(
                     loss_type,
                     valid_non_leaf_module_names,
                 )
+                print("Update: ", update)
 
                 if not update:
                     continue
